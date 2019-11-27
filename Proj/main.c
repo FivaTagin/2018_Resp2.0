@@ -33,6 +33,7 @@ INT main() {
 
     while (1) {
         funcUpdateAngles (&gDataset);
+
         delay(100);
     }
     return 0;
@@ -66,9 +67,11 @@ STATUS_CODE platInitialise (
         mpu0506Initialise (); // MPU 0506 Initial
         funcReachGYROwithACCLData (&gDataset);
 
+
         gLastX = funcGetRotation(X ,gDataset.accl_scaled_x, gDataset.accl_scaled_y, gDataset.accl_scaled_z);
         gLastY = funcGetRotation(Y ,gDataset.accl_scaled_x, gDataset.accl_scaled_y, gDataset.accl_scaled_z);
-        gLastZ = funcGetRotation(Z ,gDataset.accl_scaled_x, gDataset.accl_scaled_y, gDataset.accl_scaled_z);
+        gLastZ = gDataset.gyro_scaled_z;
+        // gLastZ = funcGetRotation(Z ,gDataset.accl_scaled_x, gDataset.accl_scaled_y, gDataset.accl_scaled_z);
 
 
 
@@ -155,13 +158,13 @@ STATUS_CODE funcUpdateAngles (
 
     funcReachGYROwithACCLData (&gDataset);
 
-    (*dataset).gyro_scaled_x -= gGyroOffsetX;
-    (*dataset).gyro_scaled_y -= gGyroOffsetY;
-    (*dataset).gyro_scaled_z -= gGyroOffsetZ;
+    (gDataset).gyro_scaled_x -= gGyroOffsetX;
+    (gDataset).gyro_scaled_y -= gGyroOffsetY;
+    (gDataset).gyro_scaled_z -= gGyroOffsetZ;
 
-    gyroDeltaX = ((*dataset).gyro_scaled_x * gDeltaT);
-    gyroDeltaY = ((*dataset).gyro_scaled_y * gDeltaT);
-    gyroDeltaZ = ((*dataset).gyro_scaled_z * gDeltaT);
+    gyroDeltaX = ((gDataset).gyro_scaled_x * gDeltaT);
+    gyroDeltaY = ((gDataset).gyro_scaled_y * gDeltaT);
+    gyroDeltaZ = ((gDataset).gyro_scaled_z * gDeltaT);
 
 
     gyro_total_x += gyroDeltaX;
@@ -169,19 +172,22 @@ STATUS_CODE funcUpdateAngles (
     gyro_total_z += gyroDeltaZ;
 
 
-    gAngleX = funcGetRotation(X ,(*dataset).accl_scaled_x, (*dataset).accl_scaled_y, (*dataset).accl_scaled_z);
-    gAngleY = funcGetRotation(Y ,(*dataset).accl_scaled_x, (*dataset).accl_scaled_y, (*dataset).accl_scaled_z);
-    gAngleZ = funcGetRotation(Z ,(*dataset).accl_scaled_x, (*dataset).accl_scaled_y, (*dataset).accl_scaled_z);
-
-//    printf("[BEFORE] gyro_scaled_y=%f, deltaT=%lf, rotation_y=%f, last_y= %f\n", (double)gyro_scaled_y, (double)deltaT, (double)rotation_y, (double) last_y);
-
-//    printf("[1st part] = %f\n", (double) K0*(last_y + gyro_y_delta));
-//    printf("[2nd part] = %f\n", (double) K1*rotation_y);
+    gAngleX = funcGetRotation(X ,(gDataset).accl_scaled_x, (gDataset).accl_scaled_y, (gDataset).accl_scaled_z);
+    gAngleY = funcGetRotation(Y ,(gDataset).accl_scaled_x, (gDataset).accl_scaled_y, (gDataset).accl_scaled_z);
+    gAngleZ = funcGetRotation(Z ,(gDataset).accl_scaled_x, (gDataset).accl_scaled_y, (gDataset).accl_scaled_z);
+    
     gLastX = gK0 * (gLastX + gyroDeltaX) + (gK1 * gAngleX);
     gLastY = gK0 * (gLastY + gyroDeltaY) + (gK1 * gAngleY);
-    gLastZ = gK0 * (gLastZ + gyroDeltaZ) + (gK1 * gAngleZ);
-
-    printf("[AFTER] gyro_scaled_y=%f, deltaT=%lf, rotation_y=%f, last_y=%f\n", (double)(*dataset).gyro_scaled_y, (double)gDeltaT, (double)gAngleY, (double) gLastY);
+    //
+    // make excuse of changing value for arix Z
+    // this is because there is no effect way to acculate the real angle of Z
+    // that makes the angle of Z will decrease to around 0
+    // therefore, remove the orginal method
+    //    
+    if (gyroDeltaZ > 0.5 || gyroDeltaZ < -0.5) {
+      gLastZ = gLastZ + gyroDeltaZ; 
+    }
+    printf ("x : %10f  y : : %10f  z : : %10f\n", gAngleX,gAngleY,gLastZ);
     return status;
 
 }
@@ -212,10 +218,12 @@ STATUS_CODE funcReachGYROwithACCLData (
   struct datasetMPU0605 *dataset
 ) {
     STATUS_CODE status;
-    status = STATUS_SUCCESS;
+    
 
     int acclX, acclY, acclZ;
     int gyroX, gyroY, gyroZ;
+
+    status = STATUS_SUCCESS;
 
     acclX = read_word_2c(MPU0506_ACCL_X_H);
     acclY = read_word_2c(MPU0506_ACCL_Y_H);
@@ -228,10 +236,12 @@ STATUS_CODE funcReachGYROwithACCLData (
     gyroX = read_word_2c(MPU0506_GYTO_X_H);
     gyroY = read_word_2c(MPU0506_GYTO_Y_H);
     gyroZ = read_word_2c(MPU0506_GYTO_Z_H);
+    
 
     (*dataset).gyro_scaled_x = gyroX / MPU0506_VAR_GYRO;
     (*dataset).gyro_scaled_y = gyroY / MPU0506_VAR_GYRO;
     (*dataset).gyro_scaled_z = gyroZ / MPU0506_VAR_GYRO;
+    
 
     return status;
 
@@ -269,8 +279,8 @@ double funcGetRotation
       radians = atan2(x, funcDist(y, z));
       break;
       case Z :
-
-      radians = atan2(z, funcDist(y, x));
+      radians = z;
+    //   radians = atan2(z, funcDist(y, x));
       break;
       default :
       break;
